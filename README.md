@@ -17,4 +17,4 @@ US VISA (ais.usvisa-info.com) appointment re-scheduler
 - That's it!
 
 ## Acknowledgement
-Thanks to @uxDaniel for the script ([initial repo](https://github.com/uxDaniel/visa_rescheduler)).
+Thanks to @uxDaniel for the initial version of the script ([repo](https://github.com/uxDaniel/visa_rescheduler)).
