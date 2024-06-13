@@ -18,6 +18,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
+from urllib.parse import quote
+
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -32,25 +34,35 @@ FACILITY_ID = config['USVISA']['FACILITY_ID']
 SENDGRID_API_KEY = config['SENDGRID']['SENDGRID_API_KEY']
 PUSH_TOKEN = config['PUSHOVER']['PUSH_TOKEN']
 PUSH_USER = config['PUSHOVER']['PUSH_USER']
+TELEGRAM_BOT_TOKEN = config['TELEGRAM']['BOT_TOKEN']
+TELEGRAM_CHAT_ID = config['TELEGRAM']['CHAT_ID']
 
 LOCAL_USE = config['CHROMEDRIVER'].getboolean('LOCAL_USE')
 HUB_ADDRESS = config['CHROMEDRIVER']['HUB_ADDRESS']
 
-REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
+REGEX_CONTINUE = "//a[contains(text(),'Continue')]"
 
 
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
 def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
 
-STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
-RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 minutes
-EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
-COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minutes
+STEP_TIME = (0.4, 0.6) # time between steps (interactions with forms), random range 0.4 -0.6 seconds
+RETRY_TIME = (60*2, 60*10)  # wait time between retries/checks for available dates: random range 5-10 minutes
+EXCEPTION_TIME = (60*20, 60*30)  # wait time when an exception occurs: random range 20-30 minutes
+COOLDOWN_TIME = (60*30, 60*60)  # wait time when temporary banned (empty list): random range 30-60 minutes
 
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
 EXIT = False
+
+print(f"initial config: TELEGRAM_BOT_TOKEN: '{TELEGRAM_BOT_TOKEN}', TELEGRAM_CHAT_ID: '{TELEGRAM_CHAT_ID}'")
+
+def rand_sleep(range):
+    min, max = range
+    sleep_seconds = min + (max - min) * random.random()
+    print(f" ... Sleep {sleep_seconds} seconds ...")
+    time.sleep(sleep_seconds)
 
 
 def send_notification(msg):
@@ -79,6 +91,10 @@ def send_notification(msg):
             "message": msg
         }
         requests.post(url, data)
+    
+    if TELEGRAM_BOT_TOKEN:
+        url = 'https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}'.format(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, quote(msg))
+        requests.get(url)
 
 
 def get_driver():
@@ -94,22 +110,22 @@ driver = get_driver()
 def login():
     # Bypass reCAPTCHA
     driver.get(f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv")
-    time.sleep(STEP_TIME)
+    rand_sleep(STEP_TIME)
     a = driver.find_element(By.XPATH, '//a[@class="down-arrow bounce"]')
     a.click()
-    time.sleep(STEP_TIME)
+    rand_sleep(STEP_TIME)
 
     print("Login start...")
     href = driver.find_element(By.XPATH, '//*[@id="header"]/nav/div[1]/div[1]/div[2]/div[1]/ul/li[3]/a')
    
     href.click()
-    time.sleep(STEP_TIME)
+    rand_sleep(STEP_TIME)
     Wait(driver, 60).until(EC.presence_of_element_located((By.NAME, "commit")))
 
     print("\tclick bounce")
     a = driver.find_element(By.XPATH, '//a[@class="down-arrow bounce"]')
     a.click()
-    time.sleep(STEP_TIME)
+    rand_sleep(STEP_TIME)
 
     do_login_action()
 
@@ -141,14 +157,25 @@ def do_login_action():
 
 
 def get_date():
-    driver.get(DATE_URL)
-    if not is_logged_in():
-        login()
-        return get_date()
-    else:
-        content = driver.find_element(By.TAG_NAME, 'pre').text
-        date = json.loads(content)
-        return date
+    print(".. get_date() ..")
+    # driver.get(DATE_URL)
+    # if not is_logged_in():
+    #     login()
+    #     return get_date()
+    # else:
+    #     content = driver.find_element(By.TAG_NAME, 'pre').text
+    #     date = json.loads(content)
+    #     return date
+
+    driver.get(APPOINTMENT_URL)
+    session = driver.get_cookie("_yatri_session")["value"]
+    NEW_GET = driver.execute_script(
+        "var req = new XMLHttpRequest();req.open('GET', '" +
+        str(DATE_URL) +
+        "', false);req.setRequestHeader('Accept', 'application/json, text/javascript, /; q=0.01');req.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); req.setRequestHeader('Cookie', '_yatri_session=" +
+        session +
+        "'); req.send(null);return req.responseText;")
+    return json.loads(NEW_GET)
 
 
 def get_time(date):
@@ -256,11 +283,11 @@ if __name__ == "__main__":
               send_notification(msg)
               EXIT = True
             print_dates(dates)
-            date = get_available_date(dates)
+            earlier_date = get_available_date(dates)
             print()
-            print(f"New date: {date}")
-            if date:
-                reschedule(date)
+            print(f"New earlier date: {earlier_date}")
+            if earlier_date:
+                reschedule(earlier_date)
                 push_notification(dates)
 
             if(EXIT):
@@ -271,13 +298,13 @@ if __name__ == "__main__":
               msg = "List is empty"
               send_notification(msg)
               #EXIT = True
-              time.sleep(COOLDOWN_TIME)
+              rand_sleep(COOLDOWN_TIME)
             else:
-              time.sleep(RETRY_TIME)
+              rand_sleep(RETRY_TIME)
 
         except:
             retry_count += 1
-            time.sleep(EXCEPTION_TIME)
+            rand_sleep(EXCEPTION_TIME)
 
     if(not EXIT):
         send_notification("HELP! Crashed.")
