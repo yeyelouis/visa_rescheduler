@@ -5,6 +5,7 @@ import json
 import random
 import platform
 import configparser
+import pprint
 from datetime import datetime
 
 import requests
@@ -56,7 +57,8 @@ TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_I
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
 EXIT = False
 
-print(f"initial config: TELEGRAM_BOT_TOKEN: '{TELEGRAM_BOT_TOKEN}', TELEGRAM_CHAT_ID: '{TELEGRAM_CHAT_ID}'")
+print(f"initial config:")
+pprint.pp(locals())
 
 def rand_sleep(range):
     min, max = range
@@ -158,15 +160,6 @@ def do_login_action():
 
 def get_date():
     print(".. get_date() ..")
-    # driver.get(DATE_URL)
-    # if not is_logged_in():
-    #     login()
-    #     return get_date()
-    # else:
-    #     content = driver.find_element(By.TAG_NAME, 'pre').text
-    #     date = json.loads(content)
-    #     return date
-
     driver.get(APPOINTMENT_URL)
     session = driver.get_cookie("_yatri_session")["value"]
     NEW_GET = driver.execute_script(
@@ -238,7 +231,7 @@ def print_dates(dates):
 last_seen = None
 
 
-def get_available_date(dates):
+def get_earlier_available_date(dates):
     global last_seen
 
     def is_earlier(date):
@@ -266,6 +259,8 @@ def push_notification(dates):
 
 
 if __name__ == "__main__":
+    send_notification(f"visa.py started to run, finding date earlier than {MY_SCHEDULE_DATE}. When found, it will try to (re)schedule automatically.")
+
     login()
     retry_count = 0
     while 1:
@@ -278,12 +273,8 @@ if __name__ == "__main__":
             print()
 
             dates = get_date()[:5]
-            if not dates:
-              msg = "List is empty"
-              send_notification(msg)
-              EXIT = True
             print_dates(dates)
-            earlier_date = get_available_date(dates)
+            earlier_date = get_earlier_available_date(dates)
             print()
             print(f"New earlier date: {earlier_date}")
             if earlier_date:
@@ -295,9 +286,9 @@ if __name__ == "__main__":
                 break
 
             if not dates:
-              msg = "List is empty"
-              send_notification(msg)
-              #EXIT = True
+            #   msg = "List is empty"
+            #   send_notification(msg)
+            #   EXIT = True
               rand_sleep(COOLDOWN_TIME)
             else:
               rand_sleep(RETRY_TIME)
