@@ -1,5 +1,5 @@
 # visa_rescheduler
-US VISA (ais.usvisa-info.com) appointment re-scheduler - Colombian adaptation
+US VISA (ais.usvisa-info.com) appointment re-scheduler
 
 ## Prerequisites
 - Having a US VISA appointment scheduled already
@@ -17,4 +17,4 @@ US VISA (ais.usvisa-info.com) appointment re-scheduler - Colombian adaptation
 - That's it!
 
 ## Acknowledgement
-Thanks to @yaojialyu for creating the initial script and to @cejaramillof for adapting it to Colombia!
+Thanks to @uxDaniel for the script ([initial repo](https://github.com/uxDaniel/visa_rescheduler)).
