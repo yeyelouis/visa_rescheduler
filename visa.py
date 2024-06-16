@@ -48,9 +48,9 @@ REGEX_CONTINUE = "//a[contains(text(),'Continue')]"
 def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
 
 STEP_TIME = (0.4, 0.6) # time between steps (interactions with forms), random range 0.4 -0.6 seconds
-RETRY_TIME = (60*2, 60*10)  # wait time between retries/checks for available dates: random range 5-10 minutes
-EXCEPTION_TIME = (60*20, 60*30)  # wait time when an exception occurs: random range 20-30 minutes
-COOLDOWN_TIME = (60*30, 60*60)  # wait time when temporary banned (empty list): random range 30-60 minutes
+RETRY_TIME = (60*5, 60*15)  # wait time between retries/checks for available dates: random range 5-10 minutes
+EXCEPTION_TIME = (60*20, 60*40)  # wait time when an exception occurs: random range 20-30 minutes
+COOLDOWN_TIME = (60*50, 60*60)  # wait time when temporary banned (empty list): random range 30-60 minutes
 
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
@@ -106,7 +106,15 @@ def get_driver():
         dr = webdriver.Remote(command_executor=HUB_ADDRESS, options=webdriver.ChromeOptions())
     return dr
 
+
 driver = get_driver()
+
+
+def reset_driver():
+    print(".. resetting driver ..")
+    global driver
+    driver.quit()
+    driver = get_driver()
 
 
 def login():
@@ -261,8 +269,8 @@ def push_notification(dates):
 if __name__ == "__main__":
     send_notification(f"visa.py started to run, finding date earlier than {MY_SCHEDULE_DATE}. When found, it will try to (re)schedule automatically.")
 
-    login()
     retry_count = 0
+    login()
     while 1:
         if retry_count > 6:
             break
@@ -289,13 +297,23 @@ if __name__ == "__main__":
             #   msg = "List is empty"
             #   send_notification(msg)
             #   EXIT = True
+              print("----------------- There is no any available dates")
               rand_sleep(COOLDOWN_TIME)
+              reset_driver()
+              login()
             else:
               rand_sleep(RETRY_TIME)
 
-        except:
-            retry_count += 1
-            rand_sleep(EXCEPTION_TIME)
+        except Exception as e:
+            print(f"---- Caught Exeception e: {e}")
+            try:
+                retry_count += 1
+                rand_sleep(EXCEPTION_TIME)
+                reset_driver()
+                login() # tried login again after exception
+            except Exeception as e2:
+                printf(f"---- Crashed in the exception handling, e2: {e2}")
+                break
 
     if(not EXIT):
         send_notification("HELP! Crashed.")
